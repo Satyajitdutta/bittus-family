@@ -3,6 +3,345 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bittu's Family — Image Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: oklch(97% 0.014 75);
+    font-family: 'Work Sans', sans-serif;
+    color: oklch(20% 0.02 50);
+    padding-bottom: 120px;
+  }
+  header {
+    padding: 40px 28px 24px;
+    text-align: center;
+    background: oklch(22% 0.03 55);
+    color: oklch(98% 0.01 75);
+  }
+  header h1 { font-family:'Instrument Serif',serif; font-weight:400; font-size: clamp(30px,5vw,44px); margin: 0 0 10px; }
+  header p { margin: 0; max-width: 620px; margin-inline: auto; color: oklch(90% 0.01 75 / 0.8); font-size: 14px; line-height: 1.6; }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+    background: oklch(97% 0.014 75 / 0.95); backdrop-filter: blur(6px);
+    padding: 14px; border-bottom: 1px solid oklch(85% 0.02 70);
+  }
+  button, .btn {
+    font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.03em;
+    border: none; border-radius: 999px; padding: 11px 20px; cursor: pointer;
+    background: oklch(20% 0.02 50); color: oklch(98% 0.01 75);
+  }
+  button.secondary { background: oklch(90% 0.02 70); color: oklch(20% 0.02 50); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #status { font-size: 13px; align-self: center; color: oklch(45% 0.02 50); }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+  .group-title { font-family:'Instrument Serif',serif; font-size: 26px; margin: 40px 0 16px; }
+  .group-title:first-child { margin-top: 0; }
+
+  .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+  .slot-card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
+  .slot-thumb { aspect-ratio: 4/5; background: oklch(90% 0.02 70) center/cover no-repeat; position: relative; }
+  .slot-thumb.dirty::after { content: 'changed'; position:absolute; top:8px; right:8px; background: oklch(66% 0.16 45); color:#fff; font-size:10px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; padding:4px 9px; border-radius:999px; }
+  .slot-body { padding: 12px 14px 16px; }
+  .slot-label { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+  .slot-file { font-size: 11px; color: oklch(50% 0.02 50); word-break: break-all; margin-bottom: 10px; min-height: 28px; }
+  .slot-actions { display: flex; gap: 8px; }
+  .slot-actions button { flex: 1; padding: 8px 10px; font-size: 12px; }
+
+  /* picker modal */
+  #picker-overlay { position: fixed; inset:0; background: rgba(20,15,10,0.6); display:none; align-items:center; justify-content:center; z-index: 100; padding: 20px; }
+  #picker-overlay.open { display: flex; }
+  #picker { background: #fff; border-radius: 20px; width: 100%; max-width: 900px; max-height: 85vh; display:flex; flex-direction:column; overflow:hidden; }
+  #picker-head { padding: 18px 22px; border-bottom: 1px solid oklch(90% 0.02 70); display:flex; justify-content:space-between; align-items:center; }
+  #picker-head h3 { font-family:'Instrument Serif',serif; font-size: 22px; margin:0; font-weight: 400; }
+  #picker-tabs { display:flex; gap:8px; padding: 14px 22px 0; }
+  #picker-tabs button { background: oklch(92% 0.02 70); color: oklch(20% 0.02 50); }
+  #picker-tabs button.active { background: oklch(20% 0.02 50); color: #fff; }
+  #picker-body { padding: 18px 22px 24px; overflow-y: auto; }
+  #library-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(110px,1fr)); gap: 10px; }
+  #library-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; cursor: pointer; border: 3px solid transparent; display:block; }
+  #library-grid img:hover { border-color: oklch(66% 0.16 45); }
+  #upload-zone { border: 2px dashed oklch(75% 0.02 70); border-radius: 14px; padding: 40px 20px; text-align: center; color: oklch(45% 0.02 50); font-size: 14px; }
+  #upload-zone input { display:block; margin: 14px auto 0; }
+  .close-x { background: none; color: oklch(40% 0.02 50); font-size: 20px; padding: 4px 10px; }
+
+  #downloads { display:none; margin-top: 24px; padding: 18px 20px; background: oklch(94% 0.02 45 / 0.5); border-radius: 14px; }
+  #downloads.show { display:block; }
+  #downloads h4 { margin: 0 0 10px; font-size: 14px; }
+  #downloads ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 2; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Image Editor</h1>
+  <p>Every photo slot on the site, in one place. Swap in a different existing photo, or upload a brand new one — then export the updated <code>index.html</code> and drop it back into the site folder.</p>
+</header>
+
+<div class="toolbar">
+  <button id="export-btn">Export updated index.html</button>
+  <button class="secondary" id="reset-all-btn">Reset all changes</button>
+  <span id="status">No changes yet</span>
+</div>
+
+<main id="slots-root"></main>
+
+<div id="downloads"></div>
+
+<div id="picker-overlay">
+  <div id="picker">
+    <div id="picker-head">
+      <h3 id="picker-title">Choose a photo</h3>
+      <button class="close-x" id="picker-close">✕</button>
+    </div>
+    <div id="picker-tabs">
+      <button class="active" data-tab="library">Choose from library</button>
+      <button data-tab="upload">Upload new photo</button>
+    </div>
+    <div id="picker-body">
+      <div id="tab-library"><div id="library-grid"></div></div>
+      <div id="tab-upload" style="display:none;">
+        <div id="upload-zone">
+          Drop a photo here, or
+          <input type="file" id="file-input" accept="image/*">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Every image slot on index.html, grouped for display.
+  var SLOT_GROUPS = [
+    { title: 'Hero', slots: [
+      { id: 'hero-bg', label: 'Hero — background (blurred)', file: 'bittu-soccerball.jpeg' },
+      { id: 'hero-fg', label: 'Hero — foreground (Bittu)', file: 'bittu-soccerball.jpeg' }
+    ]},
+    { title: 'Statement & Story', slots: [
+      { id: 'statement', label: 'Statement photo', file: 'mama-window-wide.jpeg' },
+      { id: 'story', label: 'Story photo', file: 'family-cats-wide.jpeg' }
+    ]},
+    { title: 'The Cast', slots: [
+      { id: 'cast-bittu', label: 'Bittu', file: 'bittu-soccerball.jpeg' },
+      { id: 'cast-tina', label: 'Tina', file: 'tina-vip-happy.jpeg' },
+      { id: 'cast-simmi', label: 'Simmi', file: 'simmi-orange-shirt.jpeg' },
+      { id: 'cast-mama', label: 'Mama', file: 'mama-bowtie-sitting.jpeg' }
+    ]},
+    { title: 'Gallery', slots: [
+      { id: 'gallery-1', label: 'Gallery 1', file: 'bittu-hairclips-1.jpeg' },
+      { id: 'gallery-2', label: 'Gallery 2', file: 'simmi-green-shirt.jpeg' },
+      { id: 'gallery-3', label: 'Gallery 3', file: 'mama-window-close.jpeg' },
+      { id: 'gallery-4', label: 'Gallery 4', file: 'tina-vip-calm.jpeg' },
+      { id: 'gallery-5', label: 'Gallery 5', file: 'simmi-window.jpeg' },
+      { id: 'gallery-6', label: 'Gallery 6', file: 'family-cats-close.jpeg' },
+      { id: 'gallery-7', label: 'Gallery 7', file: 'bittu-tongue-1.jpeg' },
+      { id: 'gallery-8', label: 'Gallery 8', file: 'mama-face-closeup.jpeg' }
+    ]},
+    { title: 'Follow section background', slots: [
+      { id: 'follow-bg-1', label: 'Follow background 1', file: 'bittu-outdoor-bowtie.jpeg' },
+      { id: 'follow-bg-2', label: 'Follow background 2', file: 'tina-vip-happy.jpeg' },
+      { id: 'follow-bg-3', label: 'Follow background 3', file: 'simmi-green-portrait.jpeg' },
+      { id: 'follow-bg-4', label: 'Follow background 4', file: 'mama-bowtie-lying.jpeg' }
+    ]},
+  ];
+
+  // The full photo library available to pick from (everything in assets/, minus the QR code).
+  var LIBRARY = [
+    "bittu-hairclips-1.jpeg","bittu-outdoor-bowtie.jpeg","bittu-soccerball.jpeg","bittu-tongue-1.jpeg","bittu-tongue-2.jpeg",
+    "cats-hero-wide.jpeg","cats-tablecloth.jpeg","dog-bowtie-outdoor.jpeg","dog-face-tongue-1.jpeg","dog-face-tongue-2.jpeg",
+    "dog-hairclips-1.jpeg","dog-hairclips-2.jpeg","dog-soccerball.jpeg","dog-vip-1.jpeg","dog-vip-2.jpeg",
+    "family-cats-close.jpeg","family-cats-wide.jpeg","ginger-cat-dress.jpeg","ginger-cat-window.jpeg",
+    "mama-bowtie-lying.jpeg","mama-bowtie-sitting.jpeg","mama-face-closeup.jpeg","mama-window-close.jpeg",
+    "mama-window-profile.jpeg","mama-window-wide.jpeg","simmi-dress-alt.jpeg","simmi-dress.jpeg",
+    "simmi-green-portrait.jpeg","simmi-green-shirt.jpeg","simmi-orange-shirt.jpeg","simmi-window.jpeg",
+    "test-a.jpeg","test-b.jpeg","test-c.jpeg","test-single-a.jpeg",
+    "tina-vip-1.jpeg","tina-vip-2.jpeg","tina-vip-calm.jpeg","tina-vip-happy.jpeg",
+    "white-cat-bowtie-lying.jpeg","white-cat-bowtie-sitting.jpeg","white-cat-face-closeup.jpeg",
+    "white-cat-window-1.jpeg","white-cat-window-2.jpeg","white-cat-window-3.jpeg"
+  ];
+
+  // state[slotId] = { src: 'assets/x.jpeg' | objectURL, filename: 'x.jpeg', isUpload: bool, uploadBlob: File|null }
+  var state = {};
+  var uploads = {}; // filename -> File, for the export step
+
+  SLOT_GROUPS.forEach(function (g) {
+    g.slots.forEach(function (s) {
+      state[s.id] = { src: 'assets/' + s.file, filename: s.file, isUpload: false, original: 'assets/' + s.file };
+    });
+  });
+
+  var root = document.getElementById('slots-root');
+  var statusEl = document.getElementById('status');
+  var exportBtn = document.getElementById('export-btn');
+
+  function render() {
+    root.innerHTML = '';
+    var changed = 0;
+    SLOT_GROUPS.forEach(function (g) {
+      var h = document.createElement('h2');
+      h.className = 'group-title';
+      h.textContent = g.title;
+      root.appendChild(h);
+
+      var grid = document.createElement('div');
+      grid.className = 'slot-grid';
+      g.slots.forEach(function (s) {
+        var st = state[s.id];
+        if (st.src !== st.original) changed++;
+
+        var card = document.createElement('div');
+        card.className = 'slot-card';
+
+        var thumb = document.createElement('div');
+        thumb.className = 'slot-thumb' + (st.src !== st.original ? ' dirty' : '');
+        thumb.style.backgroundImage = 'url(' + CSS.escape ? '' : '';
+        thumb.style.backgroundImage = "url('" + st.src + "')";
+        card.appendChild(thumb);
+
+        var body = document.createElement('div');
+        body.className = 'slot-body';
+
+        var label = document.createElement('div');
+        label.className = 'slot-label';
+        label.textContent = s.label;
+        body.appendChild(label);
+
+        var fileLine = document.createElement('div');
+        fileLine.className = 'slot-file';
+        fileLine.textContent = st.filename;
+        body.appendChild(fileLine);
+
+        var actions = document.createElement('div');
+        actions.className = 'slot-actions';
+
+        var changeBtn = document.createElement('button');
+        changeBtn.textContent = 'Change';
+        changeBtn.onclick = function () { openPicker(s.id, s.label); };
+        actions.appendChild(changeBtn);
+
+        var resetBtn = document.createElement('button');
+        resetBtn.className = 'secondary';
+        resetBtn.textContent = 'Reset';
+        resetBtn.disabled = st.src === st.original;
+        resetBtn.onclick = function () {
+          state[s.id] = { src: st.original, filename: st.original.replace('assets/', ''), isUpload: false, original: st.original };
+          render();
+        };
+        actions.appendChild(resetBtn);
+
+        body.appendChild(actions);
+        card.appendChild(body);
+        grid.appendChild(card);
+      });
+      root.appendChild(grid);
+    });
+
+    statusEl.textContent = changed === 0 ? 'No changes yet' : (changed + ' slot' + (changed === 1 ? '' : 's') + ' changed');
+    renderDownloads();
+  }
+
+  function renderDownloads() {
+    var box = document.getElementById('downloads');
+    var names = Object.keys(uploads);
+    if (names.length === 0) { box.className = ''; box.innerHTML = ''; return; }
+    box.className = 'show';
+    var html = '<h4>New photos to add to assets/ before uploading the site:</h4><ul>';
+    names.forEach(function (name) {
+      html += '<li><a download="' + name + '" href="' + URL.createObjectURL(uploads[name]) + '">' + name + '</a></li>';
+    });
+    html += '</ul>';
+    box.innerHTML = html;
+  }
+
+  // ---- Picker modal ----
+  var overlay = document.getElementById('picker-overlay');
+  var pickerTitle = document.getElementById('picker-title');
+  var libraryGrid = document.getElementById('library-grid');
+  var currentSlotId = null;
+
+  function openPicker(slotId, label) {
+    currentSlotId = slotId;
+    pickerTitle.textContent = 'Choose a photo — ' + label;
+    switchTab('library');
+    libraryGrid.innerHTML = '';
+    LIBRARY.forEach(function (file) {
+      var img = document.createElement('img');
+      img.src = 'assets/' + file;
+      img.title = file;
+      img.onclick = function () {
+        state[slotId].src = 'assets/' + file;
+        state[slotId].filename = file;
+        state[slotId].isUpload = false;
+        closePicker();
+        render();
+      };
+      libraryGrid.appendChild(img);
+    });
+    overlay.classList.add('open');
+  }
+  function closePicker() { overlay.classList.remove('open'); currentSlotId = null; }
+  document.getElementById('picker-close').onclick = closePicker;
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) closePicker(); });
+
+  document.querySelectorAll('#picker-tabs button').forEach(function (btn) {
+    btn.onclick = function () { switchTab(btn.getAttribute('data-tab')); };
+  });
+  function switchTab(name) {
+    document.querySelectorAll('#picker-tabs button').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-tab') === name);
+    });
+    document.getElementById('tab-library').style.display = name === 'library' ? '' : 'none';
+    document.getElementById('tab-upload').style.display = name === 'upload' ? '' : 'none';
+  }
+
+  function handleUploadFile(file) {
+    if (!file || !currentSlotId) return;
+    var safeName = file.name.toLowerCase().replace(/[^a-z0-9.\-]+/g, '-');
+    uploads[safeName] = file;
+    var url = URL.createObjectURL(file);
+    state[currentSlotId].src = url;
+    state[currentSlotId].filename = safeName;
+    state[currentSlotId].isUpload = true;
+    closePicker();
+    render();
+  }
+  document.getElementById('file-input').addEventListener('change', function (e) {
+    handleUploadFile(e.target.files[0]);
+  });
+  var uploadZone = document.getElementById('upload-zone');
+  uploadZone.addEventListener('dragover', function (e) { e.preventDefault(); });
+  uploadZone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) handleUploadFile(e.dataTransfer.files[0]);
+  });
+
+  // ---- Reset all ----
+  document.getElementById('reset-all-btn').onclick = function () {
+    if (!confirm('Reset every slot back to the original photos?')) return;
+    SLOT_GROUPS.forEach(function (g) {
+      g.slots.forEach(function (s) {
+        state[s.id] = { src: 'assets/' + s.file, filename: s.file, isUpload: false, original: 'assets/' + s.file };
+      });
+    });
+    uploads = {};
+    render();
+  };
+
+  // ---- Export ----
+  // The original index.html, embedded so this tool works fully offline / from file://.
+  // NOTE: if index.html is edited outside this tool later, re-generate this template.
+  var TEMPLATE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bittu's Family</title>
 <meta name="description" content="Meet Bittu and the whole gang, one very good boy, three ridiculously photogenic housemates, and a family that refuses to stop filming it.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -270,7 +609,34 @@
         update();
       }
     })();
-  </script>
+  <\/script>
+
+</body>
+</html>
+`;
+
+  exportBtn.onclick = function () {
+    var html = TEMPLATE;
+    Object.keys(state).forEach(function (slotId) {
+      var st = state[slotId];
+      var newSrc = st.isUpload ? ('assets/' + st.filename) : st.src;
+      var tagRegex = new RegExp('<img\\b[^>]*data-slot="' + slotId + '"[^>]*>', 'i');
+      html = html.replace(tagRegex, function (tag) {
+        return tag.replace(/src="[^"]*"/, 'src="' + newSrc + '"');
+      });
+    });
+    var blob = new Blob([html], { type: 'text/html' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'index.html';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  render();
+})();
+</script>
 
 </body>
 </html>
